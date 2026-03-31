@@ -3,7 +3,7 @@ import pandas as pd
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 
-RAW_DIR = "data/raw"   # path to XML files
+RAW_DIR = "../../data/raw"  # path to XML files
 OUTPUT_CSV = "data/processed/patient_data.csv"
 
 # Helper to parse single-timestamp events

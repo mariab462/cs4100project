@@ -16,7 +16,7 @@ LR = 0.001
 EPOCHS = 5
 
 # Load data
-df = pd.read_csv("data/processed/patient_data.csv", parse_dates=["timestamp"])
+df = pd.read_csv("../data/processed/patient_data.csv", parse_dates=["timestamp"])
 df = df.sort_values(["patient_id", "timestamp"]).reset_index(drop=True)
 
 FEATURES = ["glucose_level", "basal", "bolus", "meal_carbs", "exercise_intensity"]
@@ -97,8 +97,8 @@ for epoch in range(EPOCHS):
     print(f"Epoch {epoch+1}/{EPOCHS}, Training Loss: {total_loss/len(train_dataset):.6f}")
 
  
-os.makedirs("models", exist_ok=True)
-torch.save(model.state_dict(), "models/glucose_lstm.pth")
+os.makedirs("../models", exist_ok=True)
+torch.save(model.state_dict(), "../models/glucose_lstm.pth")
 print("Model saved to models/glucose_lstm.pth")
 
 # Evaluation 
