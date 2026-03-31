@@ -1,18 +1,47 @@
-from src.env.diabetic_env import Diabetic1Env
+# Fixed ProjectEnv.py
+import numpy as np
+import gymnasium as gym
+from gymnasium import spaces
+from src.env.diabetic_env import Diabetic1Env 
 
-class ProjectEnv:
-    def __init__(self):
-        # create the underlying environment
+class ProjectEnv(gym.Env): 
+    metadata = {"render.modes": ["human"]}
+
+    def __init__(self, minute_interval=5):
+        super().__init__()  
+
+        #  diabetic environment
         self.env = Diabetic1Env()
+        self.env.set_episode_length(minute_interval=minute_interval)
 
-        self.env.set_episode_length(minute_interval=10)
+        # Normalize action: RL agent outputs in [-1,1]
+        self.action_low = -1.0
+        self.action_high = 1.0
+        self.env_action_low = self.env.action_space.low[0]   
+        self.env_action_high = self.env.action_space.high[0] 
 
-        # expose these so RL can access them
-        self.action_space = self.env.action_space
+        
         self.observation_space = self.env.observation_space
+        self.action_space = spaces.Box(
+            low=self.action_low, high=self.action_high, shape=(1,), dtype=np.float32
+        )
 
-    def reset(self):
-        return self.env.reset()
+    def reset(self, seed=None, options=None):
+        obs, _ = self.env.reset()
+        return obs, {}
 
     def step(self, action):
-        return self.env.step(action)
+        action = np.clip(action, self.action_low, self.action_high).flatten()[0]
+        scaled_action = ((action - self.action_low) / (self.action_high - self.action_low)) * \
+                        (self.env_action_high - self.env_action_low) + self.env_action_low
+
+        obs, reward, terminated, truncated, info = self.env.step([scaled_action])
+        return obs, reward, terminated, truncated, info
+
+    def render(self, mode="human"):
+        glucose = self.env.G[-1]
+        step = self.env.curr_step
+        print(f"Step {step}, Glucose: {glucose:.1f} mg/dL")
+
+    def close(self):
+        self.env.close()

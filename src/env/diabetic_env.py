@@ -3,9 +3,9 @@
 
 # core modules
 import os
-import gym
-from gym import spaces
-from gym.utils import seeding
+import gymnasium as gym
+from gymnasium import spaces
+from gymnasium.utils import seeding
 import numpy as np
 from scipy.integrate import odeint
 from scipy.stats import truncnorm
@@ -60,12 +60,12 @@ class Diabetic0Env(gym.Env):
         self.u = None
 
         # Defining possible actions
-        self.action_space = spaces.Box(0.0, 10.0, shape=(1,))
+        self.action_space = spaces.Box(low=0.0, high=10.0, shape=(1,), dtype=np.float32)
 
         # Defining observation space
         lows = np.zeros(9)
         highs = np.ones(9) * np.inf
-        self.observation_space = spaces.Box(lows, highs)
+        self.observation_space = spaces.Box(low=lows, high=highs, dtype=np.float32)
 
         # Reward definitions
         self.target = 80.
@@ -100,30 +100,8 @@ class Diabetic0Env(gym.Env):
 
         Returns
         -------
-        observation (state), reward, episode_over, info : tuple
-            ob (object) :
-                an environment-specific object representing your observation of
-                the environment.
-            reward (float) :
-                amount of reward achieved by the previous action. The scale
-                varies between environments, but the goal is always to increase
-                your total reward.
-            episode_over (bool) :
-                whether it's time to reset the environment again. Most (but not
-                all) tasks are divided up into well-defined episodes, and done
-                being True indicates the episode has terminated. (For example,
-                perhaps the pole tipped too far, or you lost your last life.)
-            info (dict) :
-                 diagnostic information useful for debugging. It can sometimes
-                 be useful for learning (for example, it might contain the raw
-                 probabilities behind the environment's last state change).
-                 However, official evaluations of your agent are not allowed to
-                 use this for learning.
+        observation (state), reward, episode_over, truncated, info : tuple
         """
-
-        #if self.are_we_done:
-            #raise RuntimeError("Episode is done")
-
         if self.opt_states is None:
             raise Exception("You need to reset() the environment before calling step()!")
 
@@ -138,7 +116,9 @@ class Diabetic0Env(gym.Env):
         ts = [self.t[self.curr_step], self.t[self.curr_step + 1]]
 
         # simulate
-        y = odeint(diabetic, self.opt_states, ts, args=(self.u[self.curr_step + 1], self.d[self.curr_step + 1]))
+        idx = min(self.curr_step + 1, len(self.u)-1)
+        y = odeint(diabetic, self.opt_states, ts, args=(self.u[idx], self.d[idx]))
+        
 
         # update lists with updated state values
         self.G.append(y[-1][0])
@@ -155,15 +135,14 @@ class Diabetic0Env(gym.Env):
                           self.d[self.curr_step + 1],
                           self.G[-2],
                           self.d[self.curr_step]
-                          ])
+                          ], dtype=np.float32)
 
         reward = self._get_reward()
 
         # increment episode
         self.curr_step += 1
 
-        return state, reward, self.are_we_done, {}
-
+        return state, reward, self.are_we_done, False, {}  
     def _get_reward(self):
         """
         Reward is based on smooth function.
@@ -177,11 +156,10 @@ class Diabetic0Env(gym.Env):
 
         return r
 
-    def reset(self):
+    def reset(self, seed=None, options=None):
         """
         Reset the state of the environment and returns an initial observation (state)
         """
-
         self.curr_step = 0
         self.are_we_done = False
 
@@ -203,7 +181,6 @@ class Diabetic0Env(gym.Env):
         self.G = [self.opt_states[0]]
         self.X = [self.opt_states[1]]
         self.I = [self.opt_states[2]]
-        self.d = np.ones(self.episode_length) * d_ss
         self.u = [first_dose]
 
         # Constant meal disturbance vector
@@ -218,16 +195,16 @@ class Diabetic0Env(gym.Env):
                   1059,1057,1056,1056,1056,1055,1054,1052,1049,1045,\
                   1041,1033,1027,1020,1011,1003,996,986]
 
+        self.d = list(np.ones(self.episode_length) * d_ss)
         for i in range(len(meals)):
             self.d[i+43] = meals[i]
 
-        state, _, _, _ = self.step(self.u)
+        state, _, _, _, _ = self.step(self.u)
 
-        return state
+        return state, {}  
 
     def seed(self, seed=None):
         self.np_random, _ = seeding.np_random(seed)
-
 
 class Diabetic1Env(gym.Env):
 
@@ -277,12 +254,12 @@ class Diabetic1Env(gym.Env):
         self.u = None
 
         # Defining possible actions
-        self.action_space = spaces.Box(0.0, 10.0, shape=(1,))
+        self.action_space = spaces.Box(low=0.0, high=10.0, shape=(1,), dtype=np.float32)
 
         # Defining observation space
         lows = np.zeros(9)
         highs = np.ones(9) * np.inf
-        self.observation_space = spaces.Box(lows, highs)
+        self.observation_space = spaces.Box(low=lows, high=highs, dtype=np.float32)
 
         # Reward definitions
         self.target = 80.
@@ -355,7 +332,9 @@ class Diabetic1Env(gym.Env):
         ts = [self.t[self.curr_step], self.t[self.curr_step + 1]]
 
         # simulate
-        y = odeint(diabetic, self.opt_states, ts, args=(self.u[self.curr_step + 1], self.d[self.curr_step + 1]))
+        idx = min(self.curr_step + 1, len(self.u)-1)
+        y = odeint(diabetic, self.opt_states, ts, args=(self.u[idx], self.d[idx]))
+        
 
         # update lists with updated state values
         self.G.append(y[-1][0])
@@ -372,14 +351,14 @@ class Diabetic1Env(gym.Env):
                           self.d[self.curr_step + 1],
                           self.G[-2],
                           self.d[self.curr_step]
-                          ])
+                          ], dtype=np.float32)
 
         reward = self._get_reward()
 
         # increment episode
         self.curr_step += 1
 
-        return state, reward, self.are_we_done, {}
+        return state, reward, self.are_we_done, False, {}
 
     def _get_reward(self):
         """
@@ -430,9 +409,9 @@ class Diabetic1Env(gym.Env):
                                rs=self.np_random,
                                minute_interval=self.minute_interval)
 
-        state, _, _, _ = self.step(self.u)
+        state, _, _, _, _ = self.step(self.u)
 
-        return state
+        return state, {}
 
     def seed(self, seed=None):
         self.np_random, _ = seeding.np_random(seed)
