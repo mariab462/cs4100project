@@ -2,7 +2,7 @@
 from src.lstm_predictor import LSTMPredictor
 
 predictor = LSTMPredictor(
-    model_path="models/glucose_lstm.pth",
+    model_path="../models/glucose_lstm.pth",
     data_csv="data/processed/patient_data.csv"
 )
 
