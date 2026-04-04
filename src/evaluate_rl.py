@@ -2,13 +2,13 @@
 import numpy as np
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv
-from env.project_env import ProjectEnv  # your environment
+from env.hybrid_env import HybridEnv
 
 # Load environment
-env = DummyVecEnv([lambda: ProjectEnv()])
+env = DummyVecEnv([lambda: HybridEnv()])
 
 # Load trained model
-model = PPO.load("ppo_diabetic")
+model = PPO.load("ppo_diabetic_hybrid")
 
 num_episodes = 5
 target_range = (70, 180)
@@ -21,20 +21,22 @@ total_steps = 0
 
 for ep in range(num_episodes):
     obs = env.reset()
-    done = False
+    terminated = False
+    truncated = False
     ep_reward = 0
     ep_hypo = 0
     ep_hyper = 0
     ep_target = 0
     step_count = 0
 
-    while not done:
+    while not (terminated or truncated):
         action, _ = model.predict(obs, deterministic=True)
-        obs, reward, done, info = env.step(action)  
+        obs, reward, terminated, truncated, info = env.step(action)
 
         obs_val = obs[0] if isinstance(obs, np.ndarray) and obs.ndim > 1 else obs
+        lstm_predicted = obs_val[-1]  # last value is LSTM prediction
 
-        glucose = obs_val[0]  
+        glucose = obs_val[0]
         if glucose < target_range[0]:
             ep_hypo += 1
         elif glucose > target_range[1]:
@@ -42,7 +44,6 @@ for ep in range(num_episodes):
         else:
             ep_target += 1
 
-    
         ep_reward += reward[0] if isinstance(reward, np.ndarray) else reward
         step_count += 1
 
