@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CGM Diabetes Monitor</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #f9f9f8;
+      --surface: #ffffff;
+      --surface2: #f1f0eb;
+      --border: rgba(0,0,0,0.1);
+      --text: #1a1a18;
+      --text2: #6b6b66;
+      --text3: #9b9b96;
+      --green: #1D9E75;
+      --red: #E24B4A;
+      --amber: #BA7517;
+      --blue: #378ADD;
+      --orange: #D85A30;
+      --purple: #534AB7;
+      --radius: 10px;
+    }
+
+    body {
+      font-family: -apple-system, 'Helvetica Neue', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .page {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+    }
+
+    .header {
+      display: flex;
+      align-items: baseline;
+      gap: 14px;
+      margin-bottom: 2rem;
+      border-bottom: 0.5px solid var(--border);
+      padding-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .header h1 {
+      font-size: 20px;
+      font-weight: 500;
+    }
+
+    .header .sub {
+      font-size: 13px;
+      color: var(--text2);
+    }
+
+    .badge {
+      font-size: 11px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      background: #EAF3DE;
+      color: #3B6D11;
+      font-weight: 500;
+    }
+
+    .error-banner {
+      background: #FCEBEB;
+      color: #A32D2D;
+      border: 0.5px solid #F09595;
+      border-radius: var(--radius);
+      padding: 1rem 1.25rem;
+      margin-bottom: 1.5rem;
+      font-size: 14px;
+    }
+
+    .ep-tabs {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 1.5rem;
+    }
+
+    .ep-tab {
+      font-size: 12px;
+      padding: 6px 14px;
+      border: 0.5px solid var(--border);
+      border-radius: 20px;
+      background: var(--surface);
+      color: var(--text2);
+      cursor: pointer;
+    }
+
+    .ep-tab.active {
+      background: var(--text);
+      color: white;
+      border-color: var(--text);
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0,1fr));
+      gap: 10px;
+      margin-bottom: 1.5rem;
+    }
+
+    @media (max-width: 700px) {
+      .metrics {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    .metric {
+      background: var(--surface2);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+    }
+
+    .metric .label {
+      font-size: 11px;
+      color: var(--text2);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 6px;
+    }
+
+    .metric .value {
+      font-size: 26px;
+      font-weight: 500;
+      line-height: 1;
+    }
+
+    .metric .hint {
+      font-size: 11px;
+      color: var(--text3);
+      margin-top: 4px;
+    }
+
+    .metric.ok .value { color: var(--green); }
+    .metric.danger .value { color: var(--red); }
+    .metric.warn .value { color: var(--amber); }
+
+    .charts-main {
+      display: grid;
+      grid-template-columns: minmax(0,1.7fr) minmax(0,1fr);
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    @media (max-width: 900px) {
+      .charts-main {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .summary-row {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0,1fr));
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    @media (max-width: 900px) {
+      .summary-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .chart-card {
+      background: var(--surface);
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+    }
+
+    .chart-card h3 {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text2);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .legend {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      font-size: 11px;
+      color: var(--text2);
+      margin-bottom: 12px;
+    }
+
+    .legend span {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 4rem;
+      color: var(--text2);
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="header">
+      <h1>CGM diabetes monitor</h1>
+      <span class="sub">LSTM + PPO hybrid</span>
+      <span class="badge" id="status-badge">loading...</span>
+    </div>
+
+    <div id="error-area"></div>
+    <div id="app">
+      <div class="loading">Loading results from src/models/combined_results_lstm_ppo.csv...</div>
+    </div>
+  </div>
+
+  <script>
+    let allData = [];
+    let activeEp = 1;
+    let charts = {};
+
+    async function load() {
+      try {
+        const [rowsRes, summaryRes] = await Promise.all([
+          fetch('/api/results'),
+          fetch('/api/summary')
+        ]);
+
+        const rowsJson = await rowsRes.json();
+        const summaryJson = await summaryRes.json();
+
+        if (!rowsRes.ok) {
+          showError(rowsJson.error || 'Failed to load results.');
+          return;
+        }
+
+        if (!summaryRes.ok) {
+          showError(summaryJson.error || 'Failed to load summary.');
+          return;
+        }
+
+        allData = rowsJson;
+        const summary = summaryJson;
+
+        if (!Array.isArray(allData) || allData.length === 0) {
+          showError('No rows were found in the CSV.');
+          return;
+        }
+
+        document.getElementById('status-badge').textContent =
+          `${summary.num_episodes} episodes · ${summary.total_steps} steps`;
+
+        render();
+      } catch (e) {
+        showError('Could not connect to Flask server. Make sure you are running python app.py from inside src/.');
+        console.error(e);
+      }
+    }
+
+    function showError(msg) {
+      document.getElementById('error-area').innerHTML =
+        `<div class="error-banner">${msg}</div>`;
+      document.getElementById('app').innerHTML = '';
+    }
+
+    function getEpisodeData(ep) {
+      return allData.filter(r => Number(r.episode) === Number(ep));
+    }
+
+    function computeEpStats(rows) {
+      const actual = rows.map(r => Number(r.actual_glucose));
+      const pred = rows.map(r => Number(r.predicted_glucose));
+
+      const tir = actual.filter(g => g >= 70 && g <= 180).length / actual.length * 100;
+      const hypo = actual.filter(g => g < 70).length;
+      const hyper = actual.filter(g => g > 180).length;
+      const mae = actual.reduce((s, g, i) => s + Math.abs(g - pred[i]), 0) / actual.length;
+      const avgR = rows.reduce((s, r) => s + Number(r.reward), 0) / rows.length;
+
+      return {
+        tir: tir.toFixed(1),
+        hypo,
+        hyper,
+        mae: mae.toFixed(1),
+        avgR: avgR.toFixed(2)
+      };
+    }
+
+    function destroyChart(key) {
+      if (charts[key]) {
+        charts[key].destroy();
+        charts[key] = null;
+      }
+    }
+
+    function render() {
+      const episodes = [...new Set(allData.map(r => Number(r.episode)))].sort((a, b) => a - b);
+
+      if (!episodes.includes(activeEp)) {
+        activeEp = episodes[0];
+      }
+
+      document.getElementById('app').innerHTML = `
+        <div class="ep-tabs">
+          ${episodes.map(ep => {
+            const rows = getEpisodeData(ep);
+            const s = computeEpStats(rows);
+            return `<button class="ep-tab${ep === activeEp ? ' active' : ''}" onclick="switchEp(${ep})">
+              Episode ${ep} · ${s.tir}% TIR
+            </button>`;
+          }).join('')}
+        </div>
+
+        <div class="metrics" id="metrics"></div>
+
+        <div class="charts-main">
+          <div class="chart-card">
+            <h3>Glucose over time</h3>
+            <div class="legend">
+              <span><span class="dot" style="background:#378ADD"></span>actual</span>
+              <span><span class="dot" style="background:#D85A30"></span>predicted</span>
+              <span><span class="dot" style="background:#1D9E75"></span>target zone</span>
+            </div>
+            <div style="position:relative;height:260px;">
+              <canvas id="glucoseChart"></canvas>
+            </div>
+          </div>
+
+          <div class="chart-card">
+            <h3>PPO action</h3>
+            <div class="legend">
+              <span><span class="dot" style="background:#534AB7"></span>action</span>
+            </div>
+            <div style="position:relative;height:260px;">
+              <canvas id="insulinChart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <div class="summary-row">
+          <div class="chart-card">
+            <h3>Step reward</h3>
+            <div style="position:relative;height:170px;">
+              <canvas id="rewardChart"></canvas>
+            </div>
+          </div>
+
+          <div class="chart-card">
+            <h3>Glucose distribution</h3>
+            <div style="position:relative;height:170px;">
+              <canvas id="distChart"></canvas>
+            </div>
+          </div>
+
+          <div class="chart-card">
+            <h3>Time in range by episode</h3>
+            <div style="position:relative;height:170px;">
+              <canvas id="tirChart"></canvas>
+            </div>
+          </div>
+        </div>
+      `;
+
+      renderEpisode(activeEp);
+    }
+
+    function renderMetrics(rows) {
+      const s = computeEpStats(rows);
+      document.getElementById('metrics').innerHTML = `
+        <div class="metric ok">
+          <div class="label">Time in range</div>
+          <div class="value">${s.tir}%</div>
+          <div class="hint">70–180 mg/dL</div>
+        </div>
+        <div class="metric ${s.hypo > 3 ? 'danger' : ''}">
+          <div class="label">Hypo events</div>
+          <div class="value">${s.hypo}</div>
+          <div class="hint">&lt; 70 mg/dL</div>
+        </div>
+        <div class="metric ${s.hyper > 5 ? 'warn' : ''}">
+          <div class="label">Hyper events</div>
+          <div class="value">${s.hyper}</div>
+          <div class="hint">&gt; 180 mg/dL</div>
+        </div>
+        <div class="metric">
+          <div class="label">Prediction MAE</div>
+          <div class="value">${s.mae}</div>
+          <div class="hint">mg/dL avg error</div>
+        </div>
+      `;
+    }
+
+    function renderEpisode(ep) {
+      const rows = getEpisodeData(ep);
+      const labels = rows.map(r => `${Number(r.step)}`);
+      const actual = rows.map(r => Number(r.actual_glucose));
+      const pred = rows.map(r => Number(r.predicted_glucose));
+      const actions = rows.map(r => Number(r.action));
+      const rewards = rows.map(r => Number(r.reward));
+
+      renderMetrics(rows);
+
+      destroyChart('glucose');
+      charts.glucose = new Chart(document.getElementById('glucoseChart'), {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Upper bound',
+              data: rows.map(() => 180),
+              borderColor: 'rgba(29,158,117,0.25)',
+              borderWidth: 1,
+              borderDash: [4,3],
+              pointRadius: 0,
+              fill: '+1',
+              backgroundColor: 'rgba(29,158,117,0.07)'
+            },
+            {
+              label: 'Lower bound',
+              data: rows.map(() => 70),
+              borderColor: 'rgba(29,158,117,0.25)',
+              borderWidth: 1,
+              borderDash: [4,3],
+              pointRadius: 0,
+              fill: false
+            },
+            {
+              label: 'Actual',
+              data: actual,
+              borderColor: '#378ADD',
+              borderWidth: 2,
+              pointRadius: 0,
+              tension: 0.3
+            },
+            {
+              label: 'Predicted',
+              data: pred,
+              borderColor: '#D85A30',
+              borderWidth: 1.5,
+              borderDash: [5,3],
+              pointRadius: 0,
+              tension: 0.3
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } }
+        }
+      });
+
+      destroyChart('insulin');
+      charts.insulin = new Chart(document.getElementById('insulinChart'), {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Action',
+            data: actions,
+            backgroundColor: 'rgba(83,74,183,0.65)',
+            borderRadius: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } }
+        }
+      });
+
+      destroyChart('reward');
+      charts.reward = new Chart(document.getElementById('rewardChart'), {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Reward',
+            data: rewards,
+            backgroundColor: rewards.map(r =>
+              r > 0 ? 'rgba(29,158,117,0.7)' : 'rgba(226,75,74,0.7)'
+            ),
+            borderRadius: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } }
+        }
+      });
+
+      destroyChart('dist');
+      const bins = [0, 0, 0];
+      actual.forEach(g => {
+        if (g < 70) bins[0]++;
+        else if (g <= 180) bins[1]++;
+        else bins[2]++;
+      });
+
+      charts.dist = new Chart(document.getElementById('distChart'), {
+        type: 'doughnut',
+        data: {
+          labels: ['Hypo', 'In range', 'Hyper'],
+          datasets: [{
+            data: bins,
+            backgroundColor: ['#E24B4A', '#1D9E75', '#BA7517'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false
+        }
+      });
+
+      destroyChart('tir');
+      const allEpisodes = [...new Set(allData.map(r => Number(r.episode)))].sort((a, b) => a - b);
+      const tirValues = allEpisodes.map(e => {
+        const episodeRows = getEpisodeData(e);
+        const vals = episodeRows.map(r => Number(r.actual_glucose));
+        return +(vals.filter(g => g >= 70 && g <= 180).length / vals.length * 100).toFixed(1);
+      });
+
+      charts.tir = new Chart(document.getElementById('tirChart'), {
+        type: 'bar',
+        data: {
+          labels: allEpisodes.map(e => `Ep ${e}`),
+          datasets: [{
+            label: 'TIR %',
+            data: tirValues,
+            backgroundColor: allEpisodes.map(e =>
+              e === ep ? '#1D9E75' : 'rgba(29,158,117,0.3)'
+            ),
+            borderRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: {
+              min: 0,
+              max: 100
+            }
+          }
+        }
+      });
+    }
+
+    window.switchEp = function(ep) {
+      activeEp = Number(ep);
+      render();
+    };
+
+    load();
+  </script>
+</body>
+</html>
