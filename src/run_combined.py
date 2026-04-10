@@ -2,9 +2,9 @@
 import torch
 import numpy as np
 import pandas as pd
-from env.project_env import ProjectEnv
-from train_lstm import GlucoseLSTM
-from train_ppo import PolicyNetwork, ValueNetwork  
+from src.env.project_env import ProjectEnv
+from src.train_lstm import GlucoseLSTM
+from src.train_ppo import PolicyNetwork, ValueNetwork
 
 # Load models 
 LSTM_PATH = "models/glucose_lstm.pth"
@@ -48,7 +48,6 @@ for ep in range(num_episodes):
             lstm_pred = lstm_model(lstm_tensor).item()
 
         # Replace glucose
-        obs[0] = lstm_pred
         obs_tensor = torch.tensor(np.array(obs, dtype=np.float32) / 500.0)
 
         #  PPO action 

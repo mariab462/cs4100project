@@ -16,7 +16,7 @@ LR = 0.001
 EPOCHS = 5
 
 # Load data
-df = pd.read_csv("../data/processed/patient_data.csv", parse_dates=["timestamp"])
+df = pd.read_csv("data/processed/patient_data.csv", parse_dates=["timestamp"])
 df = df.sort_values(["patient_id", "timestamp"]).reset_index(drop=True)
 
 FEATURES = ["glucose_level", "basal", "bolus", "meal_carbs", "exercise_intensity"]

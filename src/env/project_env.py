@@ -2,7 +2,7 @@
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
-from src.env.diabetic_env import Diabetic1Env 
+from src.env.diabetic_env import Diabetic1Env
 
 class ProjectEnv(gym.Env): 
     metadata = {"render.modes": ["human"]}
@@ -31,11 +31,15 @@ class ProjectEnv(gym.Env):
         return obs, {}
 
     def step(self, action):
-        action = np.clip(action, self.action_low, self.action_high).flatten()[0]
-        scaled_action = ((action - self.action_low) / (self.action_high - self.action_low)) * \
-                        (self.env_action_high - self.env_action_low) + self.env_action_low
+        action = np.clip(action, -0.5, 0.5).flatten()[0]
+        scaled_action = action * self.env_action_high
 
         obs, reward, terminated, truncated, info = self.env.step([scaled_action])
+        obs = np.nan_to_num(obs, nan=100.0, posinf=400.0, neginf=40.0)
+        obs = np.clip(obs, 40, 400)
+
+        reward = np.nan_to_num(reward, nan=-1.0, posinf=-1.0, neginf=-1.0)
+
         return obs, reward, terminated, truncated, info
 
     def render(self, mode="human"):
