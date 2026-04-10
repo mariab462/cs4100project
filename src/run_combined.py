@@ -6,7 +6,7 @@ from src.env.project_env import ProjectEnv
 from src.train_lstm import GlucoseLSTM
 from src.train_ppo import PolicyNetwork, ValueNetwork
 
-# Load models 
+# Load models
 LSTM_PATH = "models/glucose_lstm.pth"
 PPO_POLICY_PATH = "models/ppo_policy_lstm.pth"
 PPO_VALUE_PATH = "models/ppo_value_lstm.pth"
@@ -41,21 +41,22 @@ for ep in range(num_episodes):
     hyper_events = 0
 
     while not done:
-        #  LSTM prediction 
+        #  LSTM prediction
         lstm_input = np.array(obs[:5], dtype=np.float32)
         lstm_tensor = torch.tensor(lstm_input).unsqueeze(0).unsqueeze(1)
         with torch.no_grad():
             lstm_pred = lstm_model(lstm_tensor).item()
 
         # Replace glucose
+        obs[0] = lstm_pred
         obs_tensor = torch.tensor(np.array(obs, dtype=np.float32) / 500.0)
 
-        #  PPO action 
+        #  PPO action
         action, _ = policy.get_action(obs_tensor)
         next_obs, reward, terminated, truncated, _ = env.step(action.detach().numpy())
         done = terminated or truncated
 
-        # Reward 
+        # Reward
         glucose = next_obs[0]
         if glucose < 70:
             hypo_events += 1
