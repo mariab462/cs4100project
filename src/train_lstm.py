@@ -7,6 +7,8 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 import matplotlib.pyplot as plt
 import os
+import joblib
+
 
 SEQ_LEN = 6        # how many past timesteps to look at
 BATCH_SIZE = 32
@@ -26,7 +28,11 @@ df[FEATURES] = df[FEATURES].fillna(0)
 
 # Scale features
 scaler = MinMaxScaler()
-df[FEATURES] = scaler.fit_transform(df[FEATURES])
+scaler.fit(df[FEATURES].values)
+df[FEATURES] = scaler.transform(df[FEATURES].values)
+joblib.dump(scaler, "models/scaler.save")
+print("Scaler saved.")
+
 
 #Patient-wise train/test split
 def split_patients(df, train_ratio=0.8):

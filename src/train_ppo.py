@@ -5,6 +5,9 @@ import torch.optim as optim
 import numpy as np
 from src.env.project_env import ProjectEnv
 from src.train_lstm import GlucoseLSTM
+from collections import deque
+import joblib
+
 
 # === Load pre-trained LSTM ===
 LSTM_PATH = "models/glucose_lstm.pth"
@@ -69,6 +72,9 @@ value_net = ValueNetwork(obs_dim)
 policy_optimizer = optim.Adam(policy.parameters(), lr=3e-4)
 value_optimizer = optim.Adam(value_net.parameters(), lr=1e-3)
 
+scaler = joblib.load("models/scaler.save")
+seq_buffer = deque(maxlen=6)
+
 gamma = 0.99
 num_episodes = 500  # longer training for better learning
 
@@ -81,17 +87,24 @@ for ep in range(num_episodes):
     all_actual_glucose = []
 
     while not done:
-        #  LSTM prediction
-        lstm_input = np.array(obs[:5], dtype=np.float32)
-        lstm_tensor = torch.tensor(lstm_input).unsqueeze(0).unsqueeze(1)
-        with torch.no_grad():
-            lstm_pred = lstm_model(lstm_tensor).item()
+        seq_buffer.append(obs[:5])
+
+        if len(seq_buffer) < 6:
+            lstm_pred = obs[0]  # fallback until buffer fills
+        else:
+            seq_array = np.array(seq_buffer, dtype=np.float32)
+            seq_scaled = scaler.transform(seq_array)
+            lstm_tensor = torch.tensor(seq_scaled).unsqueeze(0)
+
+            with torch.no_grad():
+                lstm_pred = lstm_model(lstm_tensor).item()
 
         # Replace actual glucose with LSTM prediction
-        obs[0] = lstm_pred
+        obs_aug = np.copy(obs)
+        obs_aug[0] = lstm_pred
 
         #  Normalize observation
-        obs_norm = np.array(obs, dtype=np.float32) / 500.0  # scale numeric inputs
+        obs_norm = np.array(obs_aug, dtype=np.float32) / 500.0  # scale numeric inputs
         obs_tensor = torch.tensor(obs_norm, dtype=torch.float32)
 
         #  PPO action
@@ -101,12 +114,12 @@ for ep in range(num_episodes):
 
         # Time-in-Range reward shaping
         glucose = next_obs[0]
-        if glucose < 70:
-            reward = -1.0
-        elif glucose > 180:
-            reward = -1.0
+        env_reward = reward
+
+        if 70 <= glucose <= 180:
+            reward = env_reward + 1.0
         else:
-            reward = 1.0
+            reward = env_reward - 1.0
 
         states.append(obs_tensor)
         actions.append(action)
@@ -130,12 +143,14 @@ for ep in range(num_episodes):
         returns.insert(0, G)
     returns = torch.stack(returns)
     returns = (returns - returns.mean()) / (returns.std() + 1e-8)
+    returns = returns.view(-1, 1)
 
-    advantage = returns - value_net(states).squeeze()
+    values = value_net(states)
+    advantage = returns - values
+
     new_log_probs, entropy = policy.evaluate_actions(states, actions)
-
     policy_loss = -(advantage.detach() * new_log_probs).mean()
-    value_loss = nn.MSELoss()(value_net(states).squeeze(), returns)
+    value_loss = nn.MSELoss()(values, returns)
 
     policy_optimizer.zero_grad()
     policy_loss.backward()
