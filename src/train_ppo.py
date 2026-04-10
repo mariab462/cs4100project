@@ -6,7 +6,6 @@ import numpy as np
 from src.env.project_env import ProjectEnv
 from src.train_lstm import GlucoseLSTM
 from collections import deque
-import joblib
 
 
 # === Load pre-trained LSTM ===
@@ -63,7 +62,7 @@ class ValueNetwork(nn.Module):
 
 # Environment Setup
 env = ProjectEnv()
-obs_dim = env.observation_space.shape[0]
+obs_dim = env.observation_space.shape[0] + 1
 action_dim = env.action_space.shape[0]
 
 policy = PolicyNetwork(obs_dim, action_dim)
@@ -72,7 +71,6 @@ value_net = ValueNetwork(obs_dim)
 policy_optimizer = optim.Adam(policy.parameters(), lr=3e-4)
 value_optimizer = optim.Adam(value_net.parameters(), lr=1e-3)
 
-scaler = joblib.load("models/scaler.save")
 seq_buffer = deque(maxlen=6)
 
 gamma = 0.99
@@ -82,7 +80,7 @@ for ep in range(num_episodes):
     obs, _ = env.reset()
     done = False
 
-    states, actions, rewards, log_probs = [], [], [], []
+    states, actions, rewards = [], [], []
     total_reward = 0
     all_actual_glucose = []
 
@@ -90,41 +88,39 @@ for ep in range(num_episodes):
         seq_buffer.append(obs[:5])
 
         if len(seq_buffer) < 6:
-            lstm_pred = obs[0]  # fallback until buffer fills
+            lstm_value = obs[0]  # fallback until buffer fills
         else:
             seq_array = np.array(seq_buffer, dtype=np.float32)
-            seq_scaled = scaler.transform(seq_array)
-            lstm_tensor = torch.tensor(seq_scaled).unsqueeze(0)
+            seq_tensor = torch.tensor(seq_array).unsqueeze(0)
 
             with torch.no_grad():
-                lstm_pred = lstm_model(lstm_tensor).item()
+                lstm_value = lstm_model(seq_tensor).item()
 
-        # Replace actual glucose with LSTM prediction
-        obs_aug = np.copy(obs)
-        obs_aug[0] = lstm_pred
+        lstm_feat = np.array([lstm_value / 500.0], dtype=np.float32)
 
-        #  Normalize observation
-        obs_norm = np.array(obs_aug, dtype=np.float32) / 500.0  # scale numeric inputs
-        obs_tensor = torch.tensor(obs_norm, dtype=torch.float32)
+        obs_np = np.array(obs, dtype=np.float32) / 500.0
+        obs_full = np.concatenate([obs_np, lstm_feat])
+        obs_tensor = torch.tensor(obs_full, dtype=torch.float32)
 
         #  PPO action
         action, log_prob = policy.get_action(obs_tensor)
-        next_obs, reward, terminated, truncated, _ = env.step(action.detach().numpy())
+        action_np = action.detach().numpy()
+
+        next_obs, env_reward, terminated, truncated, _ = env.step(action_np)
         done = terminated or truncated
 
         # Time-in-Range reward shaping
         glucose = next_obs[0]
-        env_reward = reward
-
-        if 70 <= glucose <= 180:
-            reward = env_reward + 1.0
+        if glucose < 70:
+            reward = env_reward - 2.0
+        elif glucose > 180:
+            reward = env_reward - min((glucose - 180) / 50.0, 5.0)
         else:
-            reward = env_reward - 1.0
+            reward = env_reward + 1.0
 
         states.append(obs_tensor)
         actions.append(action)
         rewards.append(torch.tensor([reward], dtype=torch.float32))
-        log_probs.append(log_prob)
 
         total_reward += reward
         all_actual_glucose.append(glucose)
@@ -134,7 +130,6 @@ for ep in range(num_episodes):
     states = torch.stack(states)
     actions = torch.stack(actions)
     rewards = torch.stack(rewards)
-    log_probs = torch.stack(log_probs)
 
     returns = []
     G = 0

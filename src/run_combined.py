@@ -5,7 +5,9 @@ import pandas as pd
 from src.env.project_env import ProjectEnv
 from src.train_lstm import GlucoseLSTM
 from src.train_ppo import PolicyNetwork, ValueNetwork
+from collections import deque
 
+seq_buffer = deque(maxlen=6)
 # Load models
 LSTM_PATH = "models/glucose_lstm.pth"
 PPO_POLICY_PATH = "models/ppo_policy_lstm.pth"
@@ -17,7 +19,7 @@ lstm_model.eval()
 
 # Setup environment
 env = ProjectEnv()
-obs_dim = env.observation_space.shape[0]
+obs_dim = env.observation_space.shape[0] + 1
 action_dim = env.action_space.shape[0]
 
 policy = PolicyNetwork(obs_dim, action_dim)
@@ -41,15 +43,22 @@ for ep in range(num_episodes):
     hyper_events = 0
 
     while not done:
-        #  LSTM prediction
-        lstm_input = np.array(obs[:5], dtype=np.float32)
-        lstm_tensor = torch.tensor(lstm_input).unsqueeze(0).unsqueeze(1)
-        with torch.no_grad():
-            lstm_pred = lstm_model(lstm_tensor).item()
+        seq_buffer.append(obs[:5])
 
-        # Replace glucose
-        obs[0] = lstm_pred
-        obs_tensor = torch.tensor(np.array(obs, dtype=np.float32) / 500.0)
+        if len(seq_buffer) < 6:
+            lstm_value = obs[0]
+        else:
+            seq_array = np.array(seq_buffer, dtype=np.float32)
+            seq_tensor = torch.tensor(seq_array).unsqueeze(0)
+
+            with torch.no_grad():
+                lstm_value = lstm_model(seq_tensor).item()
+
+        lstm_feat = np.array([lstm_value / 500.0], dtype=np.float32)
+
+        obs_np = np.array(obs, dtype=np.float32) / 500.0
+        obs_full = np.concatenate([obs_np, lstm_feat])
+        obs_tensor = torch.tensor(obs_full, dtype=torch.float32)
 
         #  PPO action
         action, _ = policy.get_action(obs_tensor)
@@ -71,14 +80,14 @@ for ep in range(num_episodes):
         step_count += 1
 
         all_actual.append(glucose)
-        all_pred.append(lstm_pred)
+        all_pred.append(lstm_value)
         all_rewards.append(reward)
 
         results.append({
             "episode": ep+1,
             "step": step_count,
             "actual_glucose": glucose,
-            "predicted_glucose": lstm_pred,
+            "predicted_glucose": lstm_value,
             "action": action[0].item(),
             "reward": reward
         })
