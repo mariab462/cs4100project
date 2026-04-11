@@ -60,6 +60,21 @@ class ValueNetwork(nn.Module):
         return self.out(x)
 
 
+def compute_gae(rewards, values, dones, gamma=0.99, lam=0.95):
+    advantages = []
+    gae = 0
+    next_value = 0
+    for r, v, d in zip(reversed(rewards), reversed(values), reversed(dones)):
+        delta = r + gamma * next_value * (1 - d) - v
+        gae = delta + gamma * lam * (1 - d) * gae
+        advantages.insert(0, gae)
+        next_value = v
+    advantages = torch.tensor(advantages, dtype=torch.float32)
+    returns = advantages + torch.tensor(values, dtype=torch.float32)
+    return advantages, returns
+
+
+
 # Environment Setup
 env = ProjectEnv()
 obs_dim = env.observation_space.shape[0] + 1
@@ -74,13 +89,22 @@ value_optimizer = optim.Adam(value_net.parameters(), lr=1e-3)
 seq_buffer = deque(maxlen=6)
 
 gamma = 0.99
+lam = 0.95
+epsilon = 0.2
+entropy_coef = 0.01
+K_epochs = 4
+mini_batch_size = 64
 num_episodes = 500  # longer training for better learning
 
 for ep in range(num_episodes):
     obs, _ = env.reset()
     done = False
 
-    states, actions, rewards = [], [], []
+    states, actions, rewards, dones = [], [], [], []
+
+    old_log_probs = []
+    raw_values = []
+
     total_reward = 0
     all_actual_glucose = []
 
@@ -102,8 +126,11 @@ for ep in range(num_episodes):
         obs_full = np.concatenate([obs_np, lstm_feat])
         obs_tensor = torch.tensor(obs_full, dtype=torch.float32)
 
+        with torch.no_grad():
+            action, log_prob = policy.get_action(obs_tensor)
+            value = value_net(obs_tensor).item()
+
         #  PPO action
-        action, log_prob = policy.get_action(obs_tensor)
         action_np = action.detach().numpy()
 
         next_obs, env_reward, terminated, truncated, _ = env.step(action_np)
@@ -120,40 +147,56 @@ for ep in range(num_episodes):
 
         states.append(obs_tensor)
         actions.append(action)
-        rewards.append(torch.tensor([reward], dtype=torch.float32))
+        rewards.append(reward)
+        dones.append(float(done))
+        old_log_probs.append(log_prob.detach())
+        raw_values.append(value)
 
         total_reward += reward
         all_actual_glucose.append(glucose)
         obs = next_obs
 
     #  Compute returns and advantages
+    advantages, returns = compute_gae(rewards, raw_values, dones, gamma, lam)
+    advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+
     states = torch.stack(states)
     actions = torch.stack(actions)
-    rewards = torch.stack(rewards)
-
-    returns = []
-    G = 0
-    for r in reversed(rewards):
-        G = r + gamma * G
-        returns.insert(0, G)
-    returns = torch.stack(returns)
-    returns = (returns - returns.mean()) / (returns.std() + 1e-8)
+    old_log_probs = torch.stack(old_log_probs)
     returns = returns.view(-1, 1)
 
-    values = value_net(states)
-    advantage = returns - values
+    dataset_size = len(states)
+    for _ in range(K_epochs):
+        indices = torch.randperm(dataset_size)
+        for start in range(0, dataset_size, mini_batch_size):
+            idx = indices[start:start + mini_batch_size]
 
-    new_log_probs, entropy = policy.evaluate_actions(states, actions)
-    policy_loss = -(advantage.detach() * new_log_probs).mean()
-    value_loss = nn.MSELoss()(values, returns)
+            mb_states = states[idx]
+            mb_actions = actions[idx]
+            mb_old_lp = old_log_probs[idx]
+            mb_returns = returns[idx]
+            mb_advantages = advantages[idx]
 
-    policy_optimizer.zero_grad()
-    policy_loss.backward()
-    policy_optimizer.step()
+            new_log_probs, entropy = policy.evaluate_actions(mb_states, mb_actions)
+            values = value_net(mb_states)
 
-    value_optimizer.zero_grad()
-    value_loss.backward()
-    value_optimizer.step()
+            ratio = torch.exp(new_log_probs - mb_old_lp)
+            surr1 = ratio * mb_advantages
+            surr2 = torch.clamp(ratio, 1 - epsilon, 1 + epsilon) * mb_advantages
+            policy_loss = -torch.min(surr1, surr2).mean()
+
+            policy_loss = policy_loss - entropy_coef * entropy.mean()
+
+            value_loss = nn.MSELoss()(values, mb_returns)
+
+            policy_optimizer.zero_grad()
+            policy_loss.backward()
+            policy_optimizer.step()
+
+            value_optimizer.zero_grad()
+            value_loss.backward()
+            value_optimizer.step()
+
 
     time_in_range = ((np.array(all_actual_glucose) >= 70) & (np.array(all_actual_glucose) <= 180)).mean() * 100
     print(f"Episode {ep + 1}: Total Reward={total_reward:.2f}, Time-in-range={time_in_range:.2f}%")

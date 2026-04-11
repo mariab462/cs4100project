@@ -68,9 +68,9 @@ class Diabetic0Env(gym.Env):
         self.observation_space = spaces.Box(low=lows, high=highs, dtype=np.float32)
 
         # Reward definitions
-        self.target = 80.
-        self.lb = 65.
-        self.ub = 105.
+        self.target = 120.
+        self.lb = 70.
+        self.ub = 180.
 
         # Store what the agent tried
         self.curr_step = 0
