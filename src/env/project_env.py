@@ -2,7 +2,7 @@
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
-from src.env.diabetic_env import Diabetic1Env
+from env.diabetic_env import Diabetic1Env
 
 class ProjectEnv(gym.Env): 
     metadata = {"render.modes": ["human"]}

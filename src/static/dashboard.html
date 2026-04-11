@@ -8,569 +8,351 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --bg: #f9f9f8;
-      --surface: #ffffff;
-      --surface2: #f1f0eb;
-      --border: rgba(0,0,0,0.1);
-      --text: #1a1a18;
-      --text2: #6b6b66;
-      --text3: #9b9b96;
-      --green: #1D9E75;
-      --red: #E24B4A;
-      --amber: #BA7517;
-      --blue: #378ADD;
-      --orange: #D85A30;
-      --purple: #534AB7;
-      --radius: 10px;
+      --bg: #f9f9f8; --surface: #ffffff; --surface2: #f1f0eb;
+      --border: rgba(0,0,0,0.1); --text: #1a1a18; --text2: #6b6b66; --text3: #9b9b96;
+      --green: #1D9E75; --red: #E24B4A; --amber: #BA7517;
+      --blue: #378ADD; --orange: #D85A30; --purple: #534AB7; --radius: 10px;
     }
+    body { font-family: -apple-system,'Helvetica Neue',sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    .page { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem; }
+    .header { display: flex; align-items: baseline; gap: 14px; margin-bottom: 2rem; border-bottom: 0.5px solid var(--border); padding-bottom: 1rem; flex-wrap: wrap; }
+    .header h1 { font-size: 20px; font-weight: 500; }
+    .header .sub { font-size: 13px; color: var(--text2); }
+    .badge { font-size: 11px; padding: 3px 10px; border-radius: 20px; background: #EAF3DE; color: #3B6D11; font-weight: 500; }
+    .error-banner { background: #FCEBEB; color: #A32D2D; border: 0.5px solid #F09595; border-radius: var(--radius); padding: 1rem 1.25rem; margin-bottom: 1.5rem; font-size: 14px; }
 
-    body {
-      font-family: -apple-system, 'Helvetica Neue', sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-    }
+    /* Predict panel */
+    .predict-panel { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 1.5rem; }
+    .predict-panel h2 { font-size: 13px; font-weight: 500; color: var(--text2); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 16px; }
+    .input-section { margin-bottom: 14px; }
+    .input-section-label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+    .input-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+    .input-wrap { display: flex; flex-direction: column; gap: 3px; }
+    .step-lbl { font-size: 10px; color: var(--text3); text-align: center; }
+    .input-wrap input { width: 100%; text-align: center; font-size: 13px; padding: 6px 2px; border: 0.5px solid var(--border); border-radius: 6px; background: var(--surface2); color: var(--text); outline: none; }
+    .input-wrap input:focus { border-color: var(--blue); background: var(--surface); }
+    .predict-footer { display: flex; align-items: center; gap: 14px; margin-top: 16px; flex-wrap: wrap; }
+    .predict-btn { padding: 9px 20px; font-size: 14px; font-weight: 500; cursor: pointer; border: 0.5px solid var(--border); border-radius: 8px; background: var(--text); color: white; }
+    .predict-btn:hover { opacity: 0.85; }
+    .predict-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .predict-results { display: flex; gap: 16px; flex-wrap: wrap; }
+    .pred-chip { display: flex; flex-direction: column; gap: 2px; }
+    .pred-chip .p-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.04em; }
+    .pred-chip .p-value { font-size: 22px; font-weight: 500; line-height: 1; }
+    .pred-chip .p-unit { font-size: 11px; color: var(--text3); }
+    .status-pill { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500; align-self: center; }
+    .status-in_range { background: #EAF3DE; color: #3B6D11; }
+    .status-high { background: #FAEEDA; color: #633806; }
+    .status-low { background: #FCEBEB; color: #A32D2D; }
+    .pred-loading { font-size: 13px; color: var(--text3); align-self: center; }
 
-    .page {
-      max-width: 1100px;
-      margin: 0 auto;
-      padding: 2rem 1.5rem;
-    }
+    /* Episode tabs */
+    .ep-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 1.5rem; }
+    .ep-tab { font-size: 12px; padding: 6px 14px; border: 0.5px solid var(--border); border-radius: 20px; background: var(--surface); color: var(--text2); cursor: pointer; }
+    .ep-tab.active { background: var(--text); color: white; border-color: var(--text); }
 
-    .header {
-      display: flex;
-      align-items: baseline;
-      gap: 14px;
-      margin-bottom: 2rem;
-      border-bottom: 0.5px solid var(--border);
-      padding-bottom: 1rem;
-      flex-wrap: wrap;
-    }
-
-    .header h1 {
-      font-size: 20px;
-      font-weight: 500;
-    }
-
-    .header .sub {
-      font-size: 13px;
-      color: var(--text2);
-    }
-
-    .badge {
-      font-size: 11px;
-      padding: 3px 10px;
-      border-radius: 20px;
-      background: #EAF3DE;
-      color: #3B6D11;
-      font-weight: 500;
-    }
-
-    .error-banner {
-      background: #FCEBEB;
-      color: #A32D2D;
-      border: 0.5px solid #F09595;
-      border-radius: var(--radius);
-      padding: 1rem 1.25rem;
-      margin-bottom: 1.5rem;
-      font-size: 14px;
-    }
-
-    .ep-tabs {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-bottom: 1.5rem;
-    }
-
-    .ep-tab {
-      font-size: 12px;
-      padding: 6px 14px;
-      border: 0.5px solid var(--border);
-      border-radius: 20px;
-      background: var(--surface);
-      color: var(--text2);
-      cursor: pointer;
-    }
-
-    .ep-tab.active {
-      background: var(--text);
-      color: white;
-      border-color: var(--text);
-    }
-
-    .metrics {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0,1fr));
-      gap: 10px;
-      margin-bottom: 1.5rem;
-    }
-
-    @media (max-width: 700px) {
-      .metrics {
-        grid-template-columns: repeat(2, 1fr);
-      }
-    }
-
-    .metric {
-      background: var(--surface2);
-      border-radius: var(--radius);
-      padding: 14px 16px;
-    }
-
-    .metric .label {
-      font-size: 11px;
-      color: var(--text2);
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      margin-bottom: 6px;
-    }
-
-    .metric .value {
-      font-size: 26px;
-      font-weight: 500;
-      line-height: 1;
-    }
-
-    .metric .hint {
-      font-size: 11px;
-      color: var(--text3);
-      margin-top: 4px;
-    }
-
+    /* Metrics */
+    .metrics { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; margin-bottom: 1.5rem; }
+    @media (max-width: 700px) { .metrics { grid-template-columns: repeat(2,1fr); } }
+    .metric { background: var(--surface2); border-radius: var(--radius); padding: 14px 16px; }
+    .metric .label { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; }
+    .metric .value { font-size: 26px; font-weight: 500; line-height: 1; }
+    .metric .hint { font-size: 11px; color: var(--text3); margin-top: 4px; }
     .metric.ok .value { color: var(--green); }
     .metric.danger .value { color: var(--red); }
     .metric.warn .value { color: var(--amber); }
 
-    .charts-main {
-      display: grid;
-      grid-template-columns: minmax(0,1.7fr) minmax(0,1fr);
-      gap: 12px;
-      margin-bottom: 12px;
-    }
-
-    @media (max-width: 900px) {
-      .charts-main {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    .summary-row {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0,1fr));
-      gap: 12px;
-      margin-bottom: 12px;
-    }
-
-    @media (max-width: 900px) {
-      .summary-row {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    .chart-card {
-      background: var(--surface);
-      border: 0.5px solid var(--border);
-      border-radius: var(--radius);
-      padding: 16px;
-    }
-
-    .chart-card h3 {
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--text2);
-      margin-bottom: 8px;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-    }
-
-    .legend {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-      font-size: 11px;
-      color: var(--text2);
-      margin-bottom: 12px;
-    }
-
-    .legend span {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-    }
-
-    .dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 2px;
-      display: inline-block;
-      flex-shrink: 0;
-    }
-
-    .loading {
-      text-align: center;
-      padding: 4rem;
-      color: var(--text2);
-      font-size: 14px;
-    }
+    /* Charts */
+    .charts-main { display: grid; grid-template-columns: minmax(0,1.7fr) minmax(0,1fr); gap: 12px; margin-bottom: 12px; }
+    @media (max-width: 900px) { .charts-main { grid-template-columns: 1fr; } }
+    .summary-row { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; margin-bottom: 12px; }
+    @media (max-width: 900px) { .summary-row { grid-template-columns: 1fr; } }
+    .chart-card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 16px; }
+    .chart-card h3 { font-size: 12px; font-weight: 500; color: var(--text2); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 11px; color: var(--text2); margin-bottom: 12px; }
+    .legend span { display: flex; align-items: center; gap: 5px; }
+    .dot { width: 10px; height: 10px; border-radius: 2px; display: inline-block; flex-shrink: 0; }
+    .loading { text-align: center; padding: 4rem; color: var(--text2); font-size: 14px; }
   </style>
 </head>
 <body>
-  <div class="page">
-    <div class="header">
-      <h1>CGM diabetes monitor</h1>
-      <span class="sub">LSTM + PPO hybrid</span>
-      <span class="badge" id="status-badge">loading...</span>
+<div class="page">
+
+  <div class="header">
+    <h1>CGM diabetes monitor</h1>
+    <span class="sub">LSTM + PPO hybrid</span>
+    <span class="badge" id="status-badge">loading...</span>
+  </div>
+
+  <div id="error-area"></div>
+
+  <!-- Live Prediction Panel -->
+  <div class="predict-panel">
+    <h2>Live prediction — enter patient data</h2>
+
+    <div class="input-section">
+      <div class="input-section-label">CGM glucose (mg/dL)</div>
+      <div class="input-row">
+        <div class="input-wrap"><div class="step-lbl">t−4</div><input type="number" id="cgm0" value="120" min="40" max="400"></div>
+        <div class="input-wrap"><div class="step-lbl">t−3</div><input type="number" id="cgm1" value="135" min="40" max="400"></div>
+        <div class="input-wrap"><div class="step-lbl">t−2</div><input type="number" id="cgm2" value="148" min="40" max="400"></div>
+        <div class="input-wrap"><div class="step-lbl">t−1</div><input type="number" id="cgm3" value="162" min="40" max="400"></div>
+        <div class="input-wrap"><div class="step-lbl">now</div><input type="number" id="cgm4" value="175" min="40" max="400"></div>
+      </div>
     </div>
 
-    <div id="error-area"></div>
-    <div id="app">
-      <div class="loading">Loading results from src/models/combined_results_lstm_ppo.csv...</div>
+    <div class="input-section">
+      <div class="input-section-label">Meal carbs (grams)</div>
+      <div class="input-row">
+        <div class="input-wrap"><div class="step-lbl">t−4</div><input type="number" id="meal0" value="0" min="0" max="200"></div>
+        <div class="input-wrap"><div class="step-lbl">t−3</div><input type="number" id="meal1" value="0" min="0" max="200"></div>
+        <div class="input-wrap"><div class="step-lbl">t−2</div><input type="number" id="meal2" value="45" min="0" max="200"></div>
+        <div class="input-wrap"><div class="step-lbl">t−1</div><input type="number" id="meal3" value="0" min="0" max="200"></div>
+        <div class="input-wrap"><div class="step-lbl">now</div><input type="number" id="meal4" value="0" min="0" max="200"></div>
+      </div>
+    </div>
+
+    <div class="input-section">
+      <div class="input-section-label">Past insulin (units)</div>
+      <div class="input-row">
+        <div class="input-wrap"><div class="step-lbl">t−4</div><input type="number" id="ins0" value="2.0" min="0" max="20" step="0.1"></div>
+        <div class="input-wrap"><div class="step-lbl">t−3</div><input type="number" id="ins1" value="0"   min="0" max="20" step="0.1"></div>
+        <div class="input-wrap"><div class="step-lbl">t−2</div><input type="number" id="ins2" value="0"   min="0" max="20" step="0.1"></div>
+        <div class="input-wrap"><div class="step-lbl">t−1</div><input type="number" id="ins3" value="3.5" min="0" max="20" step="0.1"></div>
+        <div class="input-wrap"><div class="step-lbl">now</div><input type="number" id="ins4" value="0"   min="0" max="20" step="0.1"></div>
+      </div>
+    </div>
+
+    <div class="input-section">
+      <div class="input-section-label">Activity (0 rest · 1 light · 2 moderate · 3 intense)</div>
+      <div class="input-row">
+        <div class="input-wrap"><div class="step-lbl">t−4</div><input type="number" id="act0" value="0" min="0" max="3"></div>
+        <div class="input-wrap"><div class="step-lbl">t−3</div><input type="number" id="act1" value="0" min="0" max="3"></div>
+        <div class="input-wrap"><div class="step-lbl">t−2</div><input type="number" id="act2" value="1" min="0" max="3"></div>
+        <div class="input-wrap"><div class="step-lbl">t−1</div><input type="number" id="act3" value="1" min="0" max="3"></div>
+        <div class="input-wrap"><div class="step-lbl">now</div><input type="number" id="act4" value="0" min="0" max="3"></div>
+      </div>
+    </div>
+
+    <div class="predict-footer">
+      <button class="predict-btn" id="predict-btn" onclick="runPredict()">Run prediction</button>
+      <div id="pred-output" class="predict-results" style="display:none;">
+        <div class="pred-chip">
+          <div class="p-label">Predicted glucose</div>
+          <div class="p-value" id="pred-glucose">—</div>
+          <div class="p-unit">mg/dL (next 5 min)</div>
+        </div>
+        <div class="pred-chip">
+          <div class="p-label">Recommended dose</div>
+          <div class="p-value" id="pred-insulin">—</div>
+          <div class="p-unit">units</div>
+        </div>
+        <div id="pred-status" class="status-pill"></div>
+      </div>
+      <span class="pred-loading" id="pred-loading" style="display:none;">Running LSTM + PPO...</span>
     </div>
   </div>
 
-  <script>
-    let allData = [];
-    let activeEp = 1;
-    let charts = {};
+  <!-- Episode Dashboard -->
+  <div id="app">
+    <div class="loading">Loading results from models/combined_results_lstm_ppo.csv...</div>
+  </div>
 
-    async function load() {
-      try {
-        const [rowsRes, summaryRes] = await Promise.all([
-          fetch('/api/results'),
-          fetch('/api/summary')
-        ]);
+</div>
+<script>
+  function getVals(prefix, n) {
+    return Array.from({length: n}, (_, i) => parseFloat(document.getElementById(prefix+i).value) || 0);
+  }
 
-        const rowsJson = await rowsRes.json();
-        const summaryJson = await summaryRes.json();
+  async function runPredict() {
+    const btn = document.getElementById('predict-btn');
+    btn.disabled = true;
+    document.getElementById('pred-output').style.display = 'none';
+    document.getElementById('pred-loading').style.display = 'inline';
+    document.getElementById('error-area').innerHTML = '';
 
-        if (!rowsRes.ok) {
-          showError(rowsJson.error || 'Failed to load results.');
-          return;
-        }
-
-        if (!summaryRes.ok) {
-          showError(summaryJson.error || 'Failed to load summary.');
-          return;
-        }
-
-        allData = rowsJson;
-        const summary = summaryJson;
-
-        if (!Array.isArray(allData) || allData.length === 0) {
-          showError('No rows were found in the CSV.');
-          return;
-        }
-
-        document.getElementById('status-badge').textContent =
-          `${summary.num_episodes} episodes · ${summary.total_steps} steps`;
-
-        render();
-      } catch (e) {
-        showError('Could not connect to Flask server. Make sure you are running python app.py from inside src/.');
-        console.error(e);
+    try {
+      const res = await fetch('/api/predict', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          cgm:      getVals('cgm',  5),
+          meals:    getVals('meal', 5),
+          insulin:  getVals('ins',  5),
+          activity: getVals('act',  5),
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        document.getElementById('error-area').innerHTML =
+          `<div class="error-banner">Prediction error: ${data.error || 'unknown'}</div>`;
+      } else {
+        document.getElementById('pred-glucose').textContent = data.predicted_glucose;
+        document.getElementById('pred-insulin').textContent = data.insulin_dose;
+        const pill = document.getElementById('pred-status');
+        pill.className = `status-pill status-${data.status}`;
+        pill.textContent = data.status_text || 'Status unavailable';
+        document.getElementById('pred-output').style.display = 'flex';
       }
-    }
-
-    function showError(msg) {
+    } catch (e) {
       document.getElementById('error-area').innerHTML =
-        `<div class="error-banner">${msg}</div>`;
-      document.getElementById('app').innerHTML = '';
+        `<div class="error-banner">Could not reach Flask server. Make sure python app.py is running.</div>`;
     }
+    document.getElementById('pred-loading').style.display = 'none';
+    btn.disabled = false;
+  }
 
-    function getEpisodeData(ep) {
-      return allData.filter(r => Number(r.episode) === Number(ep));
-    }
+  let allData = [], activeEp = 1, charts = {};
 
-    function computeEpStats(rows) {
-      const actual = rows.map(r => Number(r.actual_glucose));
-      const pred = rows.map(r => Number(r.predicted_glucose));
-
-      const tir = actual.filter(g => g >= 70 && g <= 180).length / actual.length * 100;
-      const hypo = actual.filter(g => g < 70).length;
-      const hyper = actual.filter(g => g > 180).length;
-      const mae = actual.reduce((s, g, i) => s + Math.abs(g - pred[i]), 0) / actual.length;
-      const avgR = rows.reduce((s, r) => s + Number(r.reward), 0) / rows.length;
-
-      return {
-        tir: tir.toFixed(1),
-        hypo,
-        hyper,
-        mae: mae.toFixed(1),
-        avgR: avgR.toFixed(2)
-      };
-    }
-
-    function destroyChart(key) {
-      if (charts[key]) {
-        charts[key].destroy();
-        charts[key] = null;
-      }
-    }
-
-    function render() {
-      const episodes = [...new Set(allData.map(r => Number(r.episode)))].sort((a, b) => a - b);
-
-      if (!episodes.includes(activeEp)) {
-        activeEp = episodes[0];
-      }
-
-      document.getElementById('app').innerHTML = `
-        <div class="ep-tabs">
-          ${episodes.map(ep => {
-            const rows = getEpisodeData(ep);
-            const s = computeEpStats(rows);
-            return `<button class="ep-tab${ep === activeEp ? ' active' : ''}" onclick="switchEp(${ep})">
-              Episode ${ep} · ${s.tir}% TIR
-            </button>`;
-          }).join('')}
-        </div>
-
-        <div class="metrics" id="metrics"></div>
-
-        <div class="charts-main">
-          <div class="chart-card">
-            <h3>Glucose over time</h3>
-            <div class="legend">
-              <span><span class="dot" style="background:#378ADD"></span>actual</span>
-              <span><span class="dot" style="background:#D85A30"></span>predicted</span>
-              <span><span class="dot" style="background:#1D9E75"></span>target zone</span>
-            </div>
-            <div style="position:relative;height:260px;">
-              <canvas id="glucoseChart"></canvas>
-            </div>
-          </div>
-
-          <div class="chart-card">
-            <h3>PPO action</h3>
-            <div class="legend">
-              <span><span class="dot" style="background:#534AB7"></span>action</span>
-            </div>
-            <div style="position:relative;height:260px;">
-              <canvas id="insulinChart"></canvas>
-            </div>
-          </div>
-        </div>
-
-        <div class="summary-row">
-          <div class="chart-card">
-            <h3>Step reward</h3>
-            <div style="position:relative;height:170px;">
-              <canvas id="rewardChart"></canvas>
-            </div>
-          </div>
-
-          <div class="chart-card">
-            <h3>Glucose distribution</h3>
-            <div style="position:relative;height:170px;">
-              <canvas id="distChart"></canvas>
-            </div>
-          </div>
-
-          <div class="chart-card">
-            <h3>Time in range by episode</h3>
-            <div style="position:relative;height:170px;">
-              <canvas id="tirChart"></canvas>
-            </div>
-          </div>
-        </div>
-      `;
-
-      renderEpisode(activeEp);
-    }
-
-    function renderMetrics(rows) {
-      const s = computeEpStats(rows);
-      document.getElementById('metrics').innerHTML = `
-        <div class="metric ok">
-          <div class="label">Time in range</div>
-          <div class="value">${s.tir}%</div>
-          <div class="hint">70–180 mg/dL</div>
-        </div>
-        <div class="metric ${s.hypo > 3 ? 'danger' : ''}">
-          <div class="label">Hypo events</div>
-          <div class="value">${s.hypo}</div>
-          <div class="hint">&lt; 70 mg/dL</div>
-        </div>
-        <div class="metric ${s.hyper > 5 ? 'warn' : ''}">
-          <div class="label">Hyper events</div>
-          <div class="value">${s.hyper}</div>
-          <div class="hint">&gt; 180 mg/dL</div>
-        </div>
-        <div class="metric">
-          <div class="label">Prediction MAE</div>
-          <div class="value">${s.mae}</div>
-          <div class="hint">mg/dL avg error</div>
-        </div>
-      `;
-    }
-
-    function renderEpisode(ep) {
-      const rows = getEpisodeData(ep);
-      const labels = rows.map(r => `${Number(r.step)}`);
-      const actual = rows.map(r => Number(r.actual_glucose));
-      const pred = rows.map(r => Number(r.predicted_glucose));
-      const actions = rows.map(r => Number(r.action));
-      const rewards = rows.map(r => Number(r.reward));
-
-      renderMetrics(rows);
-
-      destroyChart('glucose');
-      charts.glucose = new Chart(document.getElementById('glucoseChart'), {
-        type: 'line',
-        data: {
-          labels,
-          datasets: [
-            {
-              label: 'Upper bound',
-              data: rows.map(() => 180),
-              borderColor: 'rgba(29,158,117,0.25)',
-              borderWidth: 1,
-              borderDash: [4,3],
-              pointRadius: 0,
-              fill: '+1',
-              backgroundColor: 'rgba(29,158,117,0.07)'
-            },
-            {
-              label: 'Lower bound',
-              data: rows.map(() => 70),
-              borderColor: 'rgba(29,158,117,0.25)',
-              borderWidth: 1,
-              borderDash: [4,3],
-              pointRadius: 0,
-              fill: false
-            },
-            {
-              label: 'Actual',
-              data: actual,
-              borderColor: '#378ADD',
-              borderWidth: 2,
-              pointRadius: 0,
-              tension: 0.3
-            },
-            {
-              label: 'Predicted',
-              data: pred,
-              borderColor: '#D85A30',
-              borderWidth: 1.5,
-              borderDash: [5,3],
-              pointRadius: 0,
-              tension: 0.3
-            }
-          ]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { display: false } }
-        }
-      });
-
-      destroyChart('insulin');
-      charts.insulin = new Chart(document.getElementById('insulinChart'), {
-        type: 'bar',
-        data: {
-          labels,
-          datasets: [{
-            label: 'Action',
-            data: actions,
-            backgroundColor: 'rgba(83,74,183,0.65)',
-            borderRadius: 2
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { display: false } }
-        }
-      });
-
-      destroyChart('reward');
-      charts.reward = new Chart(document.getElementById('rewardChart'), {
-        type: 'bar',
-        data: {
-          labels,
-          datasets: [{
-            label: 'Reward',
-            data: rewards,
-            backgroundColor: rewards.map(r =>
-              r > 0 ? 'rgba(29,158,117,0.7)' : 'rgba(226,75,74,0.7)'
-            ),
-            borderRadius: 2
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { display: false } }
-        }
-      });
-
-      destroyChart('dist');
-      const bins = [0, 0, 0];
-      actual.forEach(g => {
-        if (g < 70) bins[0]++;
-        else if (g <= 180) bins[1]++;
-        else bins[2]++;
-      });
-
-      charts.dist = new Chart(document.getElementById('distChart'), {
-        type: 'doughnut',
-        data: {
-          labels: ['Hypo', 'In range', 'Hyper'],
-          datasets: [{
-            data: bins,
-            backgroundColor: ['#E24B4A', '#1D9E75', '#BA7517'],
-            borderWidth: 0
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false
-        }
-      });
-
-      destroyChart('tir');
-      const allEpisodes = [...new Set(allData.map(r => Number(r.episode)))].sort((a, b) => a - b);
-      const tirValues = allEpisodes.map(e => {
-        const episodeRows = getEpisodeData(e);
-        const vals = episodeRows.map(r => Number(r.actual_glucose));
-        return +(vals.filter(g => g >= 70 && g <= 180).length / vals.length * 100).toFixed(1);
-      });
-
-      charts.tir = new Chart(document.getElementById('tirChart'), {
-        type: 'bar',
-        data: {
-          labels: allEpisodes.map(e => `Ep ${e}`),
-          datasets: [{
-            label: 'TIR %',
-            data: tirValues,
-            backgroundColor: allEpisodes.map(e =>
-              e === ep ? '#1D9E75' : 'rgba(29,158,117,0.3)'
-            ),
-            borderRadius: 4
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
-          scales: {
-            y: {
-              min: 0,
-              max: 100
-            }
-          }
-        }
-      });
-    }
-
-    window.switchEp = function(ep) {
-      activeEp = Number(ep);
+  async function load() {
+    try {
+      const [rowsRes, summaryRes] = await Promise.all([fetch('/api/results'), fetch('/api/summary')]);
+      const rowsJson = await rowsRes.json();
+      const summaryJson = await summaryRes.json();
+      if (!rowsRes.ok)    { showError(rowsJson.error    || 'Failed to load results.'); return; }
+      if (!summaryRes.ok) { showError(summaryJson.error || 'Failed to load summary.'); return; }
+      allData = rowsJson;
+      if (!Array.isArray(allData) || !allData.length) { showError('No rows in CSV.'); return; }
+      document.getElementById('status-badge').textContent =
+        `${summaryJson.num_episodes} episodes · ${summaryJson.total_steps} steps`;
       render();
-    };
+    } catch (e) {
+      showError('Could not connect to Flask server. Make sure python app.py is running from inside src/.');
+    }
+  }
 
-    load();
-  </script>
+  function showError(msg) {
+    document.getElementById('error-area').innerHTML = `<div class="error-banner">${msg}</div>`;
+    document.getElementById('app').innerHTML = '';
+  }
+
+  function getEpisodeData(ep) { return allData.filter(r => Number(r.episode) === Number(ep)); }
+
+  function computeEpStats(rows) {
+    const actual = rows.map(r => Number(r.actual_glucose));
+    const pred   = rows.map(r => Number(r.predicted_glucose));
+    return {
+      tir:  (actual.filter(g => g >= 70 && g <= 180).length / actual.length * 100).toFixed(1),
+      hypo: actual.filter(g => g < 70).length,
+      hyper: actual.filter(g => g > 180).length,
+      mae:  (actual.reduce((s,g,i) => s + Math.abs(g - pred[i]), 0) / actual.length).toFixed(1),
+      avgR: (rows.reduce((s,r) => s + Number(r.reward), 0) / rows.length).toFixed(2),
+    };
+  }
+
+  function destroyChart(k) { if (charts[k]) { charts[k].destroy(); charts[k] = null; } }
+
+  function render() {
+    const episodes = [...new Set(allData.map(r => Number(r.episode)))].sort((a,b) => a-b);
+    if (!episodes.includes(activeEp)) activeEp = episodes[0];
+    document.getElementById('app').innerHTML = `
+      <div class="ep-tabs">
+        ${episodes.map(ep => {
+          const s = computeEpStats(getEpisodeData(ep));
+          return `<button class="ep-tab${ep===activeEp?' active':''}" onclick="switchEp(${ep})">Episode ${ep} · ${s.tir}% TIR</button>`;
+        }).join('')}
+      </div>
+      <div class="metrics" id="metrics"></div>
+      <div class="charts-main">
+        <div class="chart-card">
+          <h3>Glucose over time</h3>
+          <div class="legend">
+            <span><span class="dot" style="background:#378ADD"></span>actual</span>
+            <span><span class="dot" style="background:#D85A30"></span>predicted</span>
+            <span><span class="dot" style="background:#1D9E75"></span>target zone</span>
+          </div>
+          <div style="position:relative;height:260px;"><canvas id="glucoseChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <h3>PPO action (insulin)</h3>
+          <div class="legend"><span><span class="dot" style="background:#534AB7"></span>action</span></div>
+          <div style="position:relative;height:260px;"><canvas id="insulinChart"></canvas></div>
+        </div>
+      </div>
+      <div class="summary-row">
+        <div class="chart-card"><h3>Step reward</h3><div style="position:relative;height:170px;"><canvas id="rewardChart"></canvas></div></div>
+        <div class="chart-card"><h3>Glucose distribution</h3><div style="position:relative;height:170px;"><canvas id="distChart"></canvas></div></div>
+        <div class="chart-card"><h3>Time in range by episode</h3><div style="position:relative;height:170px;"><canvas id="tirChart"></canvas></div></div>
+      </div>`;
+    renderEpisode(activeEp);
+  }
+
+  function renderMetrics(rows) {
+    const s = computeEpStats(rows);
+    const tirClass = s.tir >= 70 ? 'ok' : s.tir >= 50 ? 'warn' : 'danger';
+    document.getElementById('metrics').innerHTML = `
+      <div class="metric ${tirClass}"><div class="label">Time in range</div><div class="value">${s.tir}%</div><div class="hint">70–180 mg/dL</div></div>
+      <div class="metric ${s.hypo > 3 ? 'danger' : ''}"><div class="label">Hypo events</div><div class="value">${s.hypo}</div><div class="hint">&lt; 70 mg/dL</div></div>
+      <div class="metric ${s.hyper > 5 ? 'warn' : ''}"><div class="label">Hyper events</div><div class="value">${s.hyper}</div><div class="hint">&gt; 180 mg/dL</div></div>
+      <div class="metric"><div class="label">Prediction MAE</div><div class="value">${s.mae}</div><div class="hint">mg/dL avg error</div></div>`;
+  }
+
+  function renderEpisode(ep) {
+    const rows    = getEpisodeData(ep);
+    const labels  = rows.map(r => `${Number(r.step)}`);
+    const actual  = rows.map(r => Number(r.actual_glucose));
+    const pred    = rows.map(r => Number(r.predicted_glucose));
+    const actions = rows.map(r => Number(r.action));
+    const rewards = rows.map(r => Number(r.reward));
+    renderMetrics(rows);
+
+    destroyChart('glucose');
+    charts.glucose = new Chart(document.getElementById('glucoseChart'), {
+      type: 'line',
+      data: { labels, datasets: [
+        { data: rows.map(()=>180), borderColor:'rgba(29,158,117,0.25)', borderWidth:1, borderDash:[4,3], pointRadius:0, fill:'+1', backgroundColor:'rgba(29,158,117,0.07)', label:'Upper' },
+        { data: rows.map(()=>70),  borderColor:'rgba(29,158,117,0.25)', borderWidth:1, borderDash:[4,3], pointRadius:0, fill:false, label:'Lower' },
+        { data: actual, borderColor:'#378ADD', borderWidth:2, pointRadius:0, tension:0.3, label:'Actual' },
+        { data: pred,   borderColor:'#D85A30', borderWidth:1.5, borderDash:[5,3], pointRadius:0, tension:0.3, label:'Predicted' },
+      ]},
+      options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}} }
+    });
+
+    destroyChart('insulin');
+    charts.insulin = new Chart(document.getElementById('insulinChart'), {
+      type: 'bar',
+      data: { labels, datasets:[{ data:actions, backgroundColor:'rgba(83,74,183,0.65)', borderRadius:2, label:'Action' }] },
+      options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}} }
+    });
+
+    destroyChart('reward');
+    charts.reward = new Chart(document.getElementById('rewardChart'), {
+      type: 'bar',
+      data: { labels, datasets:[{ data:rewards, backgroundColor:rewards.map(r=>r>0?'rgba(29,158,117,0.7)':'rgba(226,75,74,0.7)'), borderRadius:2, label:'Reward' }] },
+      options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}} }
+    });
+
+    destroyChart('dist');
+    const bins = [0,0,0];
+    actual.forEach(g => { if(g<70) bins[0]++; else if(g<=180) bins[1]++; else bins[2]++; });
+    charts.dist = new Chart(document.getElementById('distChart'), {
+      type: 'doughnut',
+      data: { labels:['Hypo','In range','Hyper'], datasets:[{ data:bins, backgroundColor:['#E24B4A','#1D9E75','#BA7517'], borderWidth:0 }] },
+      options: { responsive:true, maintainAspectRatio:false }
+    });
+
+    destroyChart('tir');
+    const allEps = [...new Set(allData.map(r=>Number(r.episode)))].sort((a,b)=>a-b);
+    const tirVals = allEps.map(e => {
+      const v = getEpisodeData(e).map(r=>Number(r.actual_glucose));
+      return +(v.filter(g=>g>=70&&g<=180).length/v.length*100).toFixed(1);
+    });
+    charts.tir = new Chart(document.getElementById('tirChart'), {
+      type: 'bar',
+      data: { labels:allEps.map(e=>`Ep ${e}`), datasets:[{ data:tirVals, backgroundColor:allEps.map(e=>e===ep?'#1D9E75':'rgba(29,158,117,0.3)'), borderRadius:4, label:'TIR %' }] },
+      options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:{min:0,max:100}} }
+    });
+  }
+
+  window.switchEp = function(ep) {
+    activeEp = Number(ep);
+    document.querySelectorAll('.ep-tab').forEach(btn => {
+      btn.classList.toggle('active', btn.textContent.trim().startsWith(`Episode ${ep} `));
+    });
+    renderEpisode(activeEp);
+  };
+
+  load();
+</script>
 </body>
 </html>

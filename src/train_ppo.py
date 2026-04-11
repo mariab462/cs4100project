@@ -1,20 +1,13 @@
-# train_ppo_lstm.py
+# train_ppo.py
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
-from src.env.project_env import ProjectEnv
-from src.train_lstm import GlucoseLSTM
 
-# === Load pre-trained LSTM ===
-LSTM_PATH = "models/glucose_lstm.pth"
-lstm_model = GlucoseLSTM(input_size=5, hidden_size=64, num_layers=2)
-lstm_model.load_state_dict(torch.load(LSTM_PATH))
-lstm_model.eval()
-print("Loaded LSTM model.")
+from env.project_env import ProjectEnv
+from train_lstm import GlucoseLSTM
 
 
-# PPO Policy and Value Networks
 class PolicyNetwork(nn.Module):
     def __init__(self, obs_dim, action_dim):
         super().__init__()
@@ -58,97 +51,119 @@ class ValueNetwork(nn.Module):
         return self.out(x)
 
 
-# Environment Setup
-env = ProjectEnv()
-obs_dim = env.observation_space.shape[0]
-action_dim = env.action_space.shape[0]
+def train_ppo_lstm():
+    # Load pre-trained LSTM only when training is actually run
+    lstm_path = "models/glucose_lstm.pth"
+    lstm_model = GlucoseLSTM(input_size=5, hidden_size=64, num_layers=2)
+    lstm_model.load_state_dict(torch.load(lstm_path, map_location="cpu"))
+    lstm_model.eval()
+    print("Loaded LSTM model.")
 
-policy = PolicyNetwork(obs_dim, action_dim)
-value_net = ValueNetwork(obs_dim)
+    # Environment setup
+    env = ProjectEnv()
+    obs_dim = env.observation_space.shape[0]
+    action_dim = env.action_space.shape[0]
 
-policy_optimizer = optim.Adam(policy.parameters(), lr=3e-4)
-value_optimizer = optim.Adam(value_net.parameters(), lr=1e-3)
+    policy = PolicyNetwork(obs_dim, action_dim)
+    value_net = ValueNetwork(obs_dim)
 
-gamma = 0.99
-num_episodes = 500  # longer training for better learning
+    policy_optimizer = optim.Adam(policy.parameters(), lr=3e-4)
+    value_optimizer = optim.Adam(value_net.parameters(), lr=1e-3)
 
-for ep in range(num_episodes):
-    obs, _ = env.reset()
-    done = False
+    gamma = 0.99
+    num_episodes = 500
 
-    states, actions, rewards, log_probs = [], [], [], []
-    total_reward = 0
-    all_actual_glucose = []
+    for ep in range(num_episodes):
+        obs, _ = env.reset()
+        done = False
 
-    while not done:
-        #  LSTM prediction
-        lstm_input = np.array(obs[:5], dtype=np.float32)
-        lstm_tensor = torch.tensor(lstm_input).unsqueeze(0).unsqueeze(1)
-        with torch.no_grad():
-            lstm_pred = lstm_model(lstm_tensor).item()
+        states, actions, rewards, log_probs = [], [], [], []
+        total_reward = 0
+        all_actual_glucose = []
 
-        # Replace actual glucose with LSTM prediction
-        obs[0] = lstm_pred
+        while not done:
+            # LSTM prediction
+            lstm_input = np.array(obs[:5], dtype=np.float32)
+            lstm_tensor = torch.tensor(lstm_input, dtype=torch.float32).unsqueeze(0).unsqueeze(1)
+            with torch.no_grad():
+                lstm_pred = lstm_model(lstm_tensor).item()
 
-        #  Normalize observation
-        obs_norm = np.array(obs, dtype=np.float32) / 500.0  # scale numeric inputs
-        obs_tensor = torch.tensor(obs_norm, dtype=torch.float32)
+            # Replace actual glucose with LSTM prediction
+            obs[0] = lstm_pred
 
-        #  PPO action
-        action, log_prob = policy.get_action(obs_tensor)
-        next_obs, reward, terminated, truncated, _ = env.step(action.detach().numpy())
-        done = terminated or truncated
+            # Normalize observation
+            obs_norm = np.array(obs, dtype=np.float32) / 500.0
+            obs_tensor = torch.tensor(obs_norm, dtype=torch.float32)
 
-        # Time-in-Range reward shaping
-        glucose = next_obs[0]
-        if glucose < 70:
-            reward = -1.0
-        elif glucose > 180:
-            reward = -1.0
-        else:
-            reward = 1.0
+            # PPO action
+            action, log_prob = policy.get_action(obs_tensor)
+            next_obs, reward, terminated, truncated, _ = env.step(action.detach().numpy())
+            done = terminated or truncated
 
-        states.append(obs_tensor)
-        actions.append(action)
-        rewards.append(torch.tensor([reward], dtype=torch.float32))
-        log_probs.append(log_prob)
+            # Time-in-range reward shaping
+            glucose = next_obs[0]
+            if glucose < 70:
+                reward = -1.0
+            elif glucose > 180:
+                reward = -1.0
+            else:
+                reward = 1.0
 
-        total_reward += reward
-        all_actual_glucose.append(glucose)
-        obs = next_obs
+            states.append(obs_tensor)
+            actions.append(action)
+            rewards.append(torch.tensor(reward, dtype=torch.float32))
+            log_probs.append(log_prob)
 
-    #  Compute returns and advantages
-    states = torch.stack(states)
-    actions = torch.stack(actions)
-    rewards = torch.stack(rewards)
-    log_probs = torch.stack(log_probs)
+            total_reward += reward
+            all_actual_glucose.append(glucose)
+            obs = next_obs
 
-    returns = []
-    G = 0
-    for r in reversed(rewards):
-        G = r + gamma * G
-        returns.insert(0, G)
-    returns = torch.stack(returns)
-    returns = (returns - returns.mean()) / (returns.std() + 1e-8)
+        # Compute returns and advantages
+        states = torch.stack(states)
+        actions = torch.stack(actions)
+        rewards = torch.stack(rewards)
+        log_probs = torch.stack(log_probs)
 
-    advantage = returns - value_net(states).squeeze()
-    new_log_probs, entropy = policy.evaluate_actions(states, actions)
+        returns = []
+        G = 0.0
+        for r in reversed(rewards):
+            G = r + gamma * G
+            returns.insert(0, G)
 
-    policy_loss = -(advantage.detach() * new_log_probs).mean()
-    value_loss = nn.MSELoss()(value_net(states).squeeze(), returns)
+        returns = torch.stack(returns)
+        returns = (returns - returns.mean()) / (returns.std() + 1e-8)
 
-    policy_optimizer.zero_grad()
-    policy_loss.backward()
-    policy_optimizer.step()
+        values = value_net(states).squeeze(-1)
+        advantage = returns - values
 
-    value_optimizer.zero_grad()
-    value_loss.backward()
-    value_optimizer.step()
+        new_log_probs, entropy = policy.evaluate_actions(states, actions)
 
-    time_in_range = ((np.array(all_actual_glucose) >= 70) & (np.array(all_actual_glucose) <= 180)).mean() * 100
-    print(f"Episode {ep + 1}: Total Reward={total_reward:.2f}, Time-in-range={time_in_range:.2f}%")
+        policy_loss = -(advantage.detach() * new_log_probs).mean()
+        value_loss = nn.MSELoss()(values, returns)
 
-# Save Models 
-torch.save(policy.state_dict(), "models/ppo_policy_lstm.pth")
-torch.save(value_net.state_dict(), "models/ppo_value_lstm.pth")
-print("Saved PPO policy and value networks.")
+        policy_optimizer.zero_grad()
+        policy_loss.backward()
+        policy_optimizer.step()
+
+        value_optimizer.zero_grad()
+        value_loss.backward()
+        value_optimizer.step()
+
+        time_in_range = (
+            ((np.array(all_actual_glucose) >= 70) & (np.array(all_actual_glucose) <= 180)).mean() * 100
+            if len(all_actual_glucose) > 0 else 0.0
+        )
+
+        print(
+            f"Episode {ep + 1}: Total Reward={total_reward:.2f}, "
+            f"Time-in-range={time_in_range:.2f}%"
+        )
+
+    # Save models
+    torch.save(policy.state_dict(), "models/ppo_policy_lstm.pth")
+    torch.save(value_net.state_dict(), "models/ppo_value_lstm.pth")
+    print("Saved PPO policy and value networks.")
+
+
+if __name__ == "__main__":
+    train_ppo_lstm()
